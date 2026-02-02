@@ -1,47 +1,56 @@
 import streamlit as st
 import pandas as pd
-import os
 
-st.set_page_config(page_title="UHRE Portal", layout="wide")
+st.set_page_config(page_title="UHRE Master Portal", layout="wide")
 
 @st.cache_data
 def load_data():
-    # 1. Try the exact name first
-    target_file = 'data.csv'
-    
-    # 2. If it's not found, look for ANY csv file in the folder
-    if not os.path.exists(target_file):
-        all_files = os.listdir('.')
-        csv_files = [f for f in all_files if f.endswith('.csv')]
-        if csv_files:
-            target_file = csv_files[0] # Use the first CSV found
-        else:
-            return None, f"No CSV files found. Files seen: {all_files}"
+    # We use 'latin-1' because it is the most 'forgiving' encoding for Excel CSVs
+    try:
+        df = pd.read_csv(
+            'data.csv', 
+            encoding='latin-1', 
+            on_bad_lines='skip', 
+            encoding_errors='ignore',
+            sep=None, # This tells pandas to guess if you used commas or semicolons
+            engine='python'
+        )
+        # Clean column names
+        df.columns = df.columns.str.replace(r'\n', ' ', regex=True).str.strip()
+        return df
+    except Exception as e:
+        st.error(f"Ultimate Load Failed: {e}")
+        return None
 
-    # 3. Try reading with different encodings
-    for enc in ['utf-8', 'cp1252', 'latin1']:
-        try:
-            df = pd.read_csv(target_file, encoding=enc, on_bad_lines='skip', encoding_errors='ignore')
-            # Clean columns
-            df.columns = df.columns.str.replace(r'\n', ' ', regex=True).str.strip()
-            return df, None
-        except Exception:
-            continue
-    return None, "Encoding failed"
+df = load_data()
 
-df, error_msg = load_data()
+st.title("🏙️ UHRE Master Project Database")
 
 if df is not None:
-    st.title("🏙️ UHRE Master Project Database")
-    # ... (the rest of your search and card code from before)
-    search = st.text_input("🔍 Search Projects")
+    # Let's make sure we are actually seeing the columns
+    search = st.text_input("🔍 Search by Developer, Area, or Project")
+    
     filtered = df.copy()
     if search:
         mask = filtered.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)
         filtered = filtered[mask]
-    
+
     for _, row in filtered.iterrows():
-        st.info(f"Project: {row.get('Project Name', 'N/A')}") # Simple test display
+        # Using a safer way to get data to prevent crashes
+        p_name = row.get('Project Name', 'Unnamed Project')
+        dev = row.get('Developer', 'N/A')
+        area = row.get('Community/Area', 'N/A')
+        
+        # Look for the Google Drive link column specifically
+        link_col = [c for c in df.columns if 'Agent Pack' in c or 'Link' in c]
+        link = row[link_col[0]] if link_col and pd.notnull(row[link_col[0]]) else "#"
+
+        st.markdown(f"""
+            <div style="background:white; padding:20px; border-radius:12px; border-left:6px solid #1E3A8A; box-shadow:0 4px 6px rgba(0,0,0,0.1); margin-bottom:15px;">
+                <h3 style="margin:0; color:#1E3A8A;">{p_name}</h3>
+                <p><b>{dev}</b> | {area}</p>
+                <a href="{link}" target="_blank" style="color:#1E3A8A; font-weight:bold; text-decoration:none;">📂 View Marketing Assets</a>
+            </div>
+        """, unsafe_allow_html=True)
 else:
-    st.error(f"⚠️ {error_msg}")
-    st.write("Current Folder Contents:", os.listdir('.'))
+    st.warning("Still unable to parse the file. Try resaving the file as 'CSV UTF-8' in Excel.")
