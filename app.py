@@ -30,7 +30,7 @@ st.markdown("""
 # 2. Data Loading
 @st.cache_data
 def get_data():
-    df = pd.read_csv('UHRE_All_Tabs_Merged (1).xlsx - Merged.csv')
+    df = pd.read_csv('data.csv')
     df.columns = df.columns.str.strip() # Clean column names
     return df
 
@@ -95,4 +95,5 @@ try:
             """, unsafe_allow_html=True)
 
 except Exception as e:
+
     st.error(f"Please ensure the CSV file is in the folder. Error: {e}")
